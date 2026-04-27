@@ -12,6 +12,7 @@
 
 # Package Files #
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
 *.war
 *.nar
 *.ear
@@ -27,6 +28,7 @@ build/
 .idea/
 .vscode/
 .gradle/
+.gradle-user-home/
 out/
 bin/
 target/
@@ -38,3 +40,5 @@ Thumbs.db
 !.env.example
 src/main/resources/application-local.properties
 src/main/resources/application-prod.properties
+gradle-8.8-bin.zip
+gradle-8.8/
