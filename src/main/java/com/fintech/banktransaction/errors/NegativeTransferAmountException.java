@@ -7,4 +7,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
         value = HttpStatus.BAD_REQUEST,
         reason = "Transfer amount must be positive.")
 public class NegativeTransferAmountException extends RuntimeException {
+    public NegativeTransferAmountException() {
+        super("Transfer amount must be positive.");
+    }
 }

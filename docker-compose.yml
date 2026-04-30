@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fintech-postgres
+    environment:
+      POSTGRES_DB: banktransaction
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d banktransaction"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: fintech-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+    container_name: fintech-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/banktransaction
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      APP_CACHE_TYPE: redis
+      APP_SECURITY_ADMIN_USERNAME: admin
+      APP_SECURITY_ADMIN_PASSWORD: change-me-admin
+      APP_SECURITY_USER_USERNAME: auditor
+      APP_SECURITY_USER_PASSWORD: change-me-user
+      APP_SECURITY_JWT_SECRET: change-this-jwt-secret-for-docker-local-only-1234567890
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres-data:

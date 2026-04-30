@@ -1,8 +1,11 @@
 package com.fintech.banktransaction.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -17,6 +20,7 @@ import java.time.Duration;
 public class RedisConfig {
 
     @Bean
+    @ConditionalOnProperty(name = "app.cache.type", havingValue = "redis", matchIfMissing = true)
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
 
         // 自定义缓存配置
@@ -28,5 +32,11 @@ public class RedisConfig {
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)
                 .build();
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "app.cache.type", havingValue = "simple")
+    public CacheManager simpleCacheManager() {
+        return new ConcurrentMapCacheManager("accountCache");
     }
 }

@@ -1,0 +1,12 @@
+.git
+.github
+.gradle
+.gradle-user-home
+build
+out
+bin
+target
+*.iml
+gradle-8.8
+gradle-8.8-bin.zip
+README1.md

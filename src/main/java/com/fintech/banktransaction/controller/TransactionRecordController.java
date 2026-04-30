@@ -2,6 +2,11 @@ package com.fintech.banktransaction.controller;
 
 import com.fintech.banktransaction.dto.TransactionRecordDTO;
 import com.fintech.banktransaction.service.TransactionRecordService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,7 +33,7 @@ public class TransactionRecordController {
     @PostMapping("/transfer")
     public ResponseEntity<?> transfer(@PathVariable Long fromCustomerId, // 转出客户ID
                                       @PathVariable("accountId") Long fromAccountId, // 转出账户ID (重命名路径变量：原来是account现在是fromaccount)
-                                      @RequestBody TransferRequest request) { // 转账请求数据集
+                                      @Valid @RequestBody TransferRequest request) { // 转账请求数据集
         // 3.1 执行转账交易：从fromAccount转到toAccount
         TransactionRecordDTO transactionRecord = transactionRecordService
                 .performTransaction(fromCustomerId, fromAccountId,//转出方信息
@@ -44,7 +49,7 @@ public class TransactionRecordController {
     @PostMapping("/deposit")
     public ResponseEntity<?> deposit(@PathVariable("fromCustomerId") Long toCustomerId,
                                      @PathVariable("accountId") Long toAccountId,
-                                     @RequestBody DepositWithdrawRequest request) {
+                                     @Valid @RequestBody DepositWithdrawRequest request) {
         TransactionRecordDTO transactionRecord = transactionRecordService
                 .performTransaction(null, null,
                         toCustomerId, toAccountId,null,
@@ -54,15 +59,27 @@ public class TransactionRecordController {
 
     // 转账请求数据结构
     public static class TransferRequest {//request就是需要从客户那获得的数据
-        public long toCustomerId;
-        public long toAccountId;
-        public double amount;
-        public long bankAccountId;
-        public double percentage;
+        @NotNull(message = "toCustomerId is required.")
+        @Positive(message = "toCustomerId must be positive.")
+        public Long toCustomerId;
+        @NotNull(message = "toAccountId is required.")
+        @Positive(message = "toAccountId must be positive.")
+        public Long toAccountId;
+        @NotNull(message = "amount is required.")
+        @Positive(message = "amount must be positive.")
+        public Double amount;
+        @Positive(message = "bankAccountId must be positive when provided.")
+        public Long bankAccountId;
+        @NotNull(message = "percentage is required.")
+        @DecimalMin(value = "0.0", message = "percentage must be between 0 and 1.")
+        @DecimalMax(value = "1.0", message = "percentage must be between 0 and 1.")
+        public Double percentage;
     }
 
     // 存款/取款请求数据结构
     public static class DepositWithdrawRequest {
-        public double amount;
+        @NotNull(message = "amount is required.")
+        @Positive(message = "amount must be positive.")
+        public Double amount;
     }
 }

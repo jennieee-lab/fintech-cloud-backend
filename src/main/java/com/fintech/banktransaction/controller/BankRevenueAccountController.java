@@ -2,6 +2,8 @@ package com.fintech.banktransaction.controller;
 
 import com.fintech.banktransaction.dto.BankRevenueAccountDTO;
 import com.fintech.banktransaction.service.BankRevenueAccountService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,13 +18,13 @@ public class BankRevenueAccountController {
     @Autowired
     public void setBankRevenueAccountService(BankRevenueAccountService bankRevenueAccountService) {this.bankRevenueAccountService = bankRevenueAccountService;}
     @PostMapping//业务：创建银行账户
-    public ResponseEntity<BankRevenueAccountDTO> createBankRevenueAccount(@RequestBody CreateBankRevenueAccountRequest request) {
+    public ResponseEntity<BankRevenueAccountDTO> createBankRevenueAccount(@Valid @RequestBody CreateBankRevenueAccountRequest request) {
         BankRevenueAccountDTO bankRevenueAccountDTO=bankRevenueAccountService.createBankRevenueAccount(request.bankAccountName);
         return ResponseEntity.ok(bankRevenueAccountDTO);
     }
     //参数数据结构
     public static class CreateBankRevenueAccountRequest {
+        @NotBlank(message = "bankAccountName is required.")
         public String bankAccountName;
     }
 }
-

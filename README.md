@@ -9,9 +9,14 @@ This repository is a good portfolio project for demonstrating backend design wit
 - Supports both `personal` and `business` account types.
 - Applies percentage-based transfer fees when the sender is a business account.
 - Routes collected fees into a dedicated bank revenue account.
+- Protects API endpoints with JWT-based authentication and role-based authorization.
 - Persists customers, accounts, bank revenue accounts, and transaction records with Spring Data JPA.
 - Uses Redis caching for account detail lookups and evicts cache on balance-changing transactions.
 - Uses `@Transactional` and optimistic locking (`@Version`) to improve consistency during balance updates.
+- Returns consistent JSON error responses through global exception handling and request validation.
+- Includes automated integration tests for security, validation, and business transfer flows.
+- Includes Docker and Docker Compose setup for local infrastructure and app startup.
+- Includes a GitHub Actions workflow for CI test execution.
 - Exposes interactive API documentation with Swagger UI.
 
 ## Business Rules
@@ -33,12 +38,17 @@ The main business scenario implemented in this project is fee-aware bank transfe
 - Spring Boot 3.3.2
 - Spring Web
 - Spring Data JPA
+- Spring Security
+- Bean Validation
 - Spring Cache
 - PostgreSQL
+- H2 (test profile)
 - Redis
 - SpringDoc OpenAPI / Swagger UI
 - Gradle
 - Lombok
+- Docker / Docker Compose
+- GitHub Actions
 
 ## Architecture
 
@@ -66,12 +76,51 @@ Core domain objects:
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
+| `POST` | `/api/auth/login` | Authenticate and obtain a JWT access token |
 | `POST` | `/api/customer` | Create a customer |
 | `POST` | `/api/customer/{customerId}/account` | Create an account for a customer |
 | `GET` | `/api/customer/{customerId}/account/{accountId}` | Get account details and related transaction records |
 | `POST` | `/api/bankrevenueaccount` | Create a bank revenue account |
 | `POST` | `/api/customer/{fromCustomerId}/account/{accountId}/transaction_record/deposit` | Deposit funds into an account |
 | `POST` | `/api/customer/{fromCustomerId}/account/{accountId}/transaction_record/transfer` | Transfer funds between accounts |
+
+## Authentication and Authorization
+
+The API uses JWT bearer tokens.
+
+- `ADMIN` role can create customers, accounts, bank revenue accounts, deposits, and transfers.
+- `USER` role can read account details.
+- `/actuator/health`, Swagger UI, and OpenAPI docs are publicly accessible for local development and container health checks.
+
+Default local credentials:
+
+- Admin: `admin` / `change-me-admin`
+- User: `auditor` / `change-me-user`
+
+Default login flow:
+
+1. `POST /api/auth/login` with a username and password
+2. Extract `accessToken` from the response
+3. Call protected endpoints with `Authorization: Bearer <token>`
+
+Example login request:
+
+```json
+{
+  "username": "admin",
+  "password": "change-me-admin"
+}
+```
+
+Override credentials and the signing secret with environment variables before public deployment:
+
+```powershell
+$env:APP_SECURITY_ADMIN_USERNAME="admin"
+$env:APP_SECURITY_ADMIN_PASSWORD="strong-admin-password"
+$env:APP_SECURITY_USER_USERNAME="auditor"
+$env:APP_SECURITY_USER_PASSWORD="strong-user-password"
+$env:APP_SECURITY_JWT_SECRET="replace-with-a-long-random-secret"
+```
 
 ## Example Requests
 
@@ -130,7 +179,8 @@ In the example above, if the sender is a business account, the merchant fee is `
 - Java 17
 - PostgreSQL
 - Redis
-- IntelliJ IDEA or a local Gradle installation
+- Docker Desktop (optional, for containerized startup)
+- IntelliJ IDEA or Gradle Wrapper
 
 ### 1. Create the database
 
@@ -148,6 +198,7 @@ $env:SPRING_DATASOURCE_USERNAME="postgres"
 $env:SPRING_DATASOURCE_PASSWORD="your-password"
 $env:SPRING_DATA_REDIS_HOST="localhost"
 $env:SPRING_DATA_REDIS_PORT="6379"
+$env:APP_SECURITY_JWT_SECRET="replace-with-a-long-random-secret"
 ```
 
 You can also copy `src/main/resources/application-local.properties.example` to `src/main/resources/application-local.properties` for local-only overrides, then run with `SPRING_PROFILES_ACTIVE=local`. That file is ignored by Git and should not be committed.
@@ -161,18 +212,49 @@ Make sure both services are running before starting the application.
 You can run the app in either of these ways:
 
 - Run `BankTransactionApplication` directly from your IDE.
-- Or use Gradle after restoring the missing wrapper JAR or installing a compatible local Gradle version.
+- Or run the Gradle wrapper:
 
-Repository note:
+```powershell
+.\gradlew.bat bootRun
+```
 
-- `gradle/wrapper/gradle-wrapper.jar` is currently missing, so `./gradlew` or `gradlew.bat` will fail until the wrapper is restored.
+If your local machine has permissions issues with the default user-level Gradle cache, run:
 
-### 5. Open API docs
+```powershell
+$env:GRADLE_USER_HOME = Join-Path (Get-Location) ".gradle-user-home"
+.\gradlew.bat bootRun
+```
+
+### 5. Run with Docker Compose
+
+To start PostgreSQL, Redis, and the application together:
+
+```powershell
+docker compose up --build
+```
+
+The app will be available at `http://localhost:8080`.
+
+### 6. Open API docs
 
 Once the application is running, open:
 
 - Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 - OpenAPI JSON: `http://localhost:8080/v3/api-docs`
+
+## Testing
+
+Run the automated test suite with:
+
+```powershell
+.\gradlew.bat test
+```
+
+The test profile uses:
+
+- H2 in-memory database
+- Simple in-memory cache instead of Redis
+- Spring Boot integration tests with MockMvc and Spring Security test support
 
 ## Caching and Consistency Notes
 
@@ -181,28 +263,22 @@ Once the application is running, open:
 - Account and transaction entities use optimistic locking through `@Version` fields.
 - Transaction processing is wrapped in a single database transaction.
 
+## Delivery Tooling
+
+- `Dockerfile` builds the application into a container image.
+- `docker-compose.yml` starts the app with PostgreSQL and Redis.
+- `.github/workflows/ci.yml` runs the test suite on pushes and pull requests.
+
 ## Current Scope
 
-This project focuses on core transfer workflow modeling and backend layering. It does not yet include:
+This project now includes authentication, automated tests, Docker-based local setup, CI, and global exception handling. Higher-value future improvements would be:
 
-- Authentication or authorization
-- Automated tests
-- Docker-based local environment setup
-- CI/CD pipeline configuration
-- Global exception handling beyond the custom balance and amount checks
-
-## Suggested Next Improvements
-
-If you plan to keep this repository public and mention it on your resume, the highest-value next steps would be:
-
-1. Restore the Gradle wrapper so the project can be started with one command.
-2. Remove or externalize local database credentials completely.
-3. Add a small automated test suite for account creation and transfer scenarios.
-4. Add input validation for request bodies.
-5. Add authentication and role-based access control if you want to position it as a more production-oriented backend.
+1. Replace the current in-memory demo users with database-backed user management and refresh tokens.
+2. Add account ownership rules tied to authenticated identities instead of role-only protection.
+3. Expand tests to cover concurrent balance updates, cache behavior, and failure rollback scenarios.
+4. Add environment-specific profiles for staging and production deployments.
+5. Add deployment automation after CI, such as image publishing or infrastructure rollout.
 
 ## Project Positioning
-
-A concise way to describe this project on a resume or GitHub profile:
 
 > Built a Spring Boot banking backend that supports customer and account management, fee-aware business transfers, PostgreSQL persistence, Redis-backed account caching, and Swagger-documented REST APIs.

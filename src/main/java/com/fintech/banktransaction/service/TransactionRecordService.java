@@ -3,8 +3,10 @@ package com.fintech.banktransaction.service;
 import com.fintech.banktransaction.dto.TransactionRecordDTO;
 import com.fintech.banktransaction.errors.InsufficientBalanceException;
 import com.fintech.banktransaction.errors.NegativeTransferAmountException;
+import com.fintech.banktransaction.errors.ResourceNotFoundException;
 import com.fintech.banktransaction.model.Account;
 import com.fintech.banktransaction.model.BankRevenueAccount;
+import com.fintech.banktransaction.model.Customer;
 import com.fintech.banktransaction.model.TransactionRecord;
 import com.fintech.banktransaction.repository.AccountRepository;
 import com.fintech.banktransaction.repository.BankRevenueAccountRepository;
@@ -13,7 +15,6 @@ import com.fintech.banktransaction.repository.TransactionRecordRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.transaction.Transactional;
-import org.hibernate.annotations.Cache;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
@@ -61,6 +62,7 @@ public class TransactionRecordService {
         if (amount <= 0) {
             throw new NegativeTransferAmountException();
         }
+        validatePercentage(percentage);
 
         //存款：没有fromaccount/取款：没有toaccount --fromaccount和toaccount都有可能是null
 
@@ -72,9 +74,7 @@ public class TransactionRecordService {
         if (fromAccountId != null)//如果有转出账户：确认交易类型 不是存款，是转账
         {
             //2.1根据账户id和客户id找出客户的账户
-            fromAccount = accountRepository
-                    .findByIdAndCustomer(fromAccountId, customerRepository.getReferenceById(fromCustomerId))
-                    .orElseThrow();//账户不存在or账户不属于客户是抛出异常
+            fromAccount = getAccountOrThrow(fromCustomerId, fromAccountId);
             //本质是双重验证：
             //验证 fromAccountId 对应的账户确实存在；
             //同时验证该账户属于当前操作的客户（fromCustomerId 对应的客户）
@@ -96,11 +96,12 @@ public class TransactionRecordService {
 
             //*（商业账户是在作为转出账户时会扣除手续费）：手续费是跟转出账户绑定的
             //2.1.1如果转出账户是商业账户
-            if("business".equals(fromAccount.getAccountType())){//不能用==来判断 if(Objects.equals(fromAccount.getAccountType(), "business"))
+            if("business".equalsIgnoreCase(fromAccount.getAccountType())){//不能用==来判断 if(Objects.equals(fromAccount.getAccountType(), "business"))
                 isBusiness = true;
                 if (bankAccountId != null) {//有银行账户
                     march_fees=amount*percentage;//计算手续费
-                    bankRevenueAccount=bankRevenueAccountRepository.findById(bankAccountId).orElseThrow();//找出对应银行账户
+                    bankRevenueAccount = bankRevenueAccountRepository.findById(bankAccountId)
+                            .orElseThrow(() -> new ResourceNotFoundException("Bank revenue account", bankAccountId));//找出对应银行账户
                     bankRevenueAccount.modifyBalance(march_fees);//修改银行账户余额：+手续费
                     bankRevenueAccountRepository.save(bankRevenueAccount);
                     //不在这里直接修改amount是因为怕影响到 fromaccount不为空 但 toaccount==null的情况 即 取款：（！但商业账户取款呢？也会扣除手续费吗？取款金额怎么看？原本的代码里貌似没有处理取款金额的业务逻辑）
@@ -115,16 +116,14 @@ public class TransactionRecordService {
         if (toAccountId != null) {//如果有转入账户：确认交易类型 不是取款，是转账
 
             //3.1根据账户id和客户id找出客户的账户
-            toAccount = accountRepository
-                    .findByIdAndCustomer(toAccountId, customerRepository.getReferenceById(toCustomerId))
-                    .orElseThrow();
+            toAccount = getAccountOrThrow(toCustomerId, toAccountId);
             //注意：转入账户无需refresh
             //数据库会以 “最后一次更新” 为准（新余额 = 旧余额 + 新增金额）；
             //即使有并发转入，最终结果也是 “多次增加的总和”（例如两次各转 100 元，最终余额正确增加 200 元），不会出现数据不一致。
 
             //3.2判断接收的转账类型，修改金额
             //*（作为收入账户：如果是接受的商业账户的转账，则转出的amount需要扣除手续费）
-            if(fromAccount !=null && "business".equals(fromAccount.getAccountType())){
+            if(fromAccount !=null && "business".equalsIgnoreCase(fromAccount.getAccountType())){
                 Double receiveAmount = amount - march_fees;
                 toAccount.modifyBalance(receiveAmount);//转入账户：增加相应金额
             }else {
@@ -139,5 +138,18 @@ public class TransactionRecordService {
 
         //5.返回交易记录DTO
         return new TransactionRecordDTO(transactionRecord);
+    }
+
+    private Account getAccountOrThrow(Long customerId, Long accountId) {
+        Customer customer = customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId));
+        return accountRepository.findByIdAndCustomer(accountId, customer)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", accountId));
+    }
+
+    private void validatePercentage(Double percentage) {
+        if (percentage == null || percentage < 0 || percentage > 1) {
+            throw new IllegalArgumentException("percentage must be between 0 and 1.");
+        }
     }
 }

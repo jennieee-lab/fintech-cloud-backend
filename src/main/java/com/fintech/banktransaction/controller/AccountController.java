@@ -2,6 +2,8 @@ package com.fintech.banktransaction.controller;
 
 import com.fintech.banktransaction.dto.AccountDTO;
 import com.fintech.banktransaction.service.AccountService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,7 +27,7 @@ public class AccountController {
     //3 业务：创建账户 POST /api/customer/{customerId}/account
     @PostMapping
     public ResponseEntity<AccountDTO> createAccount(// @PathVariable：提取URL路径中的变量(customerId)
-            @PathVariable Long customerId, @RequestBody CreateAccountRequest request) {
+            @PathVariable Long customerId, @Valid @RequestBody CreateAccountRequest request) {
         //3.1 调用服务层创建账户（1解析请求中的参数：accountname/accounttype 2传入解析后参数，调用service层函数创建账户）
         AccountDTO account = accountService.createAccount(customerId, request.accountName,request.accountType);
         //3.2 创建成功后HTTP返回 200状态码和数据（accountDTO-会被序列化位JSON响应）
@@ -46,7 +48,9 @@ public class AccountController {
 
     //5 创建 账户请求时的参数列表（数据结构）
     public static class CreateAccountRequest {
+        @NotBlank(message = "accountName is required.")
         public String accountName;
+        @NotBlank(message = "accountType is required.")
         public String accountType;
     }
 }

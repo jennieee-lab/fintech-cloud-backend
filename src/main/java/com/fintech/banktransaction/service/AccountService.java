@@ -1,6 +1,8 @@
 package com.fintech.banktransaction.service;
 
 import com.fintech.banktransaction.dto.AccountDTO;
+import com.fintech.banktransaction.errors.InvalidAccountTypeException;
+import com.fintech.banktransaction.errors.ResourceNotFoundException;
 import com.fintech.banktransaction.model.Account;
 import com.fintech.banktransaction.model.Customer;
 import com.fintech.banktransaction.repository.AccountRepository;
@@ -28,8 +30,9 @@ public class AccountService {
     //处理业务：根据客户 ID 创建账户
     @Transactional
     public AccountDTO createAccount(Long customerId, String accountName,String accountType) {
-        Customer customer = customerRepository.getReferenceById(customerId);//查询客户是否存在
-        Account account = new Account(customer, accountName, accountType);//用找出来的客户 账户名称 账户类型 来新建一个账户实体
+        Customer customer = getCustomerOrThrow(customerId);//查询客户是否存在
+        String normalizedAccountType = normalizeAccountType(accountType);
+        Account account = new Account(customer, accountName, normalizedAccountType);//用找出来的客户 账户名称 账户类型 来新建一个账户实体
         account = accountRepository.save(account);//通过数据库的save（）操作将实体保存到数据库中
         return new AccountDTO(account, true);//转换为AccountDTO返回
     }
@@ -43,7 +46,22 @@ public class AccountService {
     public AccountDTO getAccount(Long customerId, Long accountId) {
         // 👈 新增：这行打印非常重要！如果控制台没有打印这句话，说明完全没有查询数据库，直接从 Redis 极速返回了数据！
         System.out.println("====== ⚠️ 正在从 PostgreSQL 数据库查询账户信息: " + accountId + " ======");
-        Account account = accountRepository.findByIdAndCustomer(accountId, customerRepository.getReferenceById(customerId)).orElseThrow();//验证账户是否属于该客户
+        Customer customer = getCustomerOrThrow(customerId);
+        Account account = accountRepository.findByIdAndCustomer(accountId, customer)
+                .orElseThrow(() -> new ResourceNotFoundException("Account", accountId));//验证账户是否属于该客户
         return new AccountDTO(account, true);//转换为AccountDTO返回
+    }
+
+    private Customer getCustomerOrThrow(Long customerId) {
+        return customerRepository.findById(customerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", customerId));
+    }
+
+    private String normalizeAccountType(String accountType) {
+        String normalizedAccountType = accountType.trim().toLowerCase();
+        if (!"personal".equals(normalizedAccountType) && !"business".equals(normalizedAccountType)) {
+            throw new InvalidAccountTypeException(accountType);
+        }
+        return normalizedAccountType;
     }
 }

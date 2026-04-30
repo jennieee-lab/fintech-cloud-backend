@@ -2,6 +2,8 @@ package com.fintech.banktransaction.controller;
 
 import com.fintech.banktransaction.dto.CustomerDTO;
 import com.fintech.banktransaction.service.CustomerService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,7 +23,7 @@ public class CustomerController {
     }
 
     @PostMapping//业务：创建客户 处理Post请求到/api/customer
-    public ResponseEntity<CustomerDTO> createCustomer(@RequestBody CreateCustomerRequest request) {
+    public ResponseEntity<CustomerDTO> createCustomer(@Valid @RequestBody CreateCustomerRequest request) {
         // @RequestBody：将HTTP请求体中的JSON自动反序列化为Java对
         // 1.1接收json解析出来的数据：firstName lastName
         // 1.2并且调用服务层方法创建客户，传入firstName和lastName
@@ -33,7 +35,9 @@ public class CustomerController {
 
     // 内部静态类:用于接收创建客户的请求参数 // 使用public字段简化JSON反序列化
     public static class CreateCustomerRequest {
+        @NotBlank(message = "firstName is required.")
         public String firstName;
+        @NotBlank(message = "lastName is required.")
         public String lastName;
     }
 
